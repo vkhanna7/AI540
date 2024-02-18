@@ -1,24 +1,16 @@
 import csv
-from numpy import linalg as LA
 import numpy as np
-from scipy.cluster.hierarchy import dendrogram, linkage
-import sys
 from scipy.cluster import hierarchy
 import matplotlib.pyplot as plt
-
-
 
 def load_data(filepath):
     data = []
     with open(filepath , 'r') as csv_file:
         csv_reader = csv.DictReader(csv_file)
         for row in csv_reader:
-            # Keep only information after the second column
             modified_row = {key: value for key, value in row.items()}
             data.append(modified_row)
     return data
-
-
 
 def calc_features(row):
     data = [float(value) for key, value in row.items() if key != 'Country' and not(key == '')]
@@ -127,13 +119,15 @@ def normalize_features(features):
     normalized_features_list = [np.array(row) for row in normalized_features]
 
     return normalized_features_list
-data = load_data("countries.csv")
-country_names = [row["Country"] for row in data]
-features = [calc_features(row) for row in data]
-features_normalized = normalize_features(features)
-n = 51
-Z_raw = hac(features[:n])
-Z_normalized = hac(features_normalized[:n])
-print(Z_normalized)
-fig = fig_hac(Z_raw, country_names[:n])
-plt.show()
+
+
+# data = load_data("countries.csv")
+# country_names = [row["Country"] for row in data]
+# features = [calc_features(row) for row in data]
+# features_normalized = normalize_features(features)
+# n = 51
+# Z_raw = hac(features[:n])
+# Z_normalized = hac(features_normalized[:n])
+# print(Z_normalized)
+# fig = fig_hac(Z_raw, country_names[:n])
+# plt.show()
