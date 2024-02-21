@@ -1,166 +1,133 @@
 import csv
-import numpy as np 
-from scipy.spatial.distance import squareform
+import numpy as np
+from scipy.cluster import hierarchy
+import matplotlib.pyplot as plt
 
 def load_data(filepath):
     data = []
     with open(filepath , 'r') as csv_file:
         csv_reader = csv.DictReader(csv_file)
         for row in csv_reader:
-            # Keep only information after the second column
-            modified_row = {key: value.strip() for key, value in row.items() if key != ''}
+            modified_row = {key: value for key, value in row.items()}
             data.append(modified_row)
     return data
 
 def calc_features(row):
-    feats = []
-    feats = [float(value) for key, value in row.items() if key != 'Country']
-    #print(feats)
-    return np.array(feats, dtype= np.float64)
-
-def calculate_distance(features):
-    distances = np.zeros((len(features), len(features)))
-    for i in range (len(features)):
-        for j in range(len(features)):
-            distance = np.linalg.norm(features[i] - features[j])
-            distances[i][j] = distance
-    return distances
-
-def merge(Z, dataset, clusters, n, idx_i, idx_j, dist):
-    for i in clusters:
-        idx = i[0]
-        if idx == idx_i:
-            cluster_i = i
-        if idx == idx_j:
-            cluster_j = i
-    m = len(dataset)
-    cluster1 = list(cluster_i[1])
-    cluster2 = list(cluster_j[1])
-    
-    cluster1.extend(cluster2)
-    
-    minn=0
-    maxx=0
-    if idx_i <idx_j:
-        minn= idx_i
-    else:
-        minn= idx_j
-    
-    if idx_i >idx_j:
-        maxx= idx_i
-    else:
-        maxx=idx_j
-        
-    Z.append([minn, maxx, dist, len(cluster1)]) 
-    
-    nc = [m+n, tuple(cluster1)]
-    clusters.remove(cluster_i)
-    clusters.remove(cluster_j)
-    clusters.append(nc)
-    return Z, clusters
+    data = [float(value) for key, value in row.items() if key != 'Country' and not(key == '')]
+    X = np.array(data, dtype=np.float64)
+    return X
 
 
 
-def calc_cluster(clusters,distances):
+def hac(dataset):
+    Z = []  # To store the hierarchical clustering tree
+    clusters = [(i, [i]) for i in range(len(dataset))]  # Initialize clusters
+
+    # Calculate pairwise distances
+    distances = np.zeros((len(dataset), len(dataset)))
+    for i in range(len(dataset)):
+        for j in range(len(dataset)):
+            dist = np.linalg.norm(dataset[i] - dataset[j])
+            distances[i][j] = dist
+
+    for i in range(len(distances) - 1):
+        idx_i, idx_j, dist, cluster_i, cluster_j = calc_cluster(clusters, distances)
+        Z, clusters = merge(Z, dataset, clusters, i, idx_i, idx_j, dist, cluster_i, cluster_j)
+
+    return np.array(Z).astype("float")
+
+
+def calc_cluster(clusters, distances):
     answer_i = -1
     answer_j = -1
-    mini = 10**9
+    mini = np.inf
+    cluster_i = []
+    cluster_j = []
+
     for i in clusters:
-        idx_i = i[0]
-        cli_i=i[1]
+        idx_i, cli_i = i
         for j in clusters:
-            idx_j = j[0]
-            cli_j = j[1]
+            idx_j, cli_j = j
             if idx_i == idx_j:
-                continue             
+                continue
             maxi = -1
-            psuedo_i = -1
-            psuedo_j = -1
             for k in cli_i:
                 for l in cli_j:
-                    if distances[k][l] > maxi:
-                        maxi = float(distances[k,l])
-                        psuedo_i = k
-                        psuedo_j = l 
+                    maxi = max(maxi, distances[k, l])
             if mini > maxi and maxi >= 0:
                 mini = maxi
                 answer_i = idx_i
-                answer_j = idx_j 
-    return [answer_i,answer_j,mini]         
+                answer_j = idx_j
+                cluster_i = cli_i
+                cluster_j = cli_j
+
+    return answer_i, answer_j, mini, cluster_i, cluster_j
 
 
-import numpy as np
+def merge(Z, dataset, clusters, n, idx_i, idx_j, dist, cluster_i, cluster_j):
+    m = len(dataset)
+    cluster1 = list(cluster_i)
+    cluster2 = list(cluster_j)
 
-def hac(features):
-    n = len(features)
-    distance_matrix = np.zeros((n, n))  # Initialize distance matrix
+    cluster1.extend(cluster2)
 
-    # Fill distance matrix with Euclidean distances
-    for i in range(n):
-        for j in range(i+1, n):
-            distance_matrix[i, j] = np.linalg.norm(features[i] - features[j])
-            distance_matrix[j, i] = distance_matrix[i, j]
+    minn = min(idx_i, idx_j)
+    maxx = max(idx_i, idx_j)
 
-    # Initialize clustering array
-    Z = np.zeros((n - 1, 4))
+    Z.append([minn, maxx, dist, len(cluster1)])
 
-    # Helper function to find the indices of the minimum distance in the distance matrix
-    def find_min_distance(matrix):
-        min_distance = np.inf
-        min_indices = (0, 0)
+    nc = [m + n, tuple(cluster1)]
+    # Remove clusters based on content
+    clusters = [c for c in clusters if c[0] not in (idx_i, idx_j)]
+    clusters.append(tuple(nc))
+    return Z, clusters
 
-        for i in range(len(matrix)):
-            for j in range(i+1, len(matrix[i])):
-                if matrix[i, j] < min_distance:
-                    min_distance = matrix[i, j]
-                    min_indices = (i, j)
-
-        return min_indices
-
-    # HAC algorithm
-    current_clusters = set(range(n))
-    next_cluster_index = n
-
-    for i in range(n - 1):
-        # Find closest clusters using complete linkage and apply tie-breaking rule
-        min_i, min_j = find_min_distance(distance_matrix)
-
-        # Update Z[i, 0], Z[i, 1], Z[i, 2], Z[i, 3] based on the closest clusters
-        Z[i, 0] = min_i
-        Z[i, 1] = min_j
-        Z[i, 2] = distance_matrix[min_i, min_j]
-        Z[i, 3] = len(current_clusters)
-
-        # Update the distance matrix by merging clusters min_i and min_j
-        new_cluster_distances = np.maximum(distance_matrix[min_i, :], distance_matrix[min_j, :])
-        distance_matrix = np.delete(distance_matrix, [min_i, min_j], axis=0)
-        distance_matrix = np.delete(distance_matrix, [min_i, min_j], axis=1)
-        new_cluster_distances = np.append(new_cluster_distances, 0)
-        distance_matrix = np.concatenate([distance_matrix, new_cluster_distances.reshape(-1, 1)], axis=1)
-        distance_matrix = np.concatenate([distance_matrix, new_cluster_distances.reshape(1, -1)], axis=0)
-        new_cluster_distances = np.append(new_cluster_distances, 0)
-        distance_matrix = np.column_stack([distance_matrix, new_cluster_distances])
-
-        # Update the indices of the merged clusters
-        current_clusters.remove(min_i)
-        current_clusters.remove(min_j)
-        current_clusters.add(next_cluster_index)
-
-        # Increment the cluster index for the next iteration
-        next_cluster_index += 1
-
-    return Z
-
-# Example usage:
-# result = hac(features)
-
-# Example usage (replace with your actual data)
-
-data = load_data("countries.csv")
-print(len(data))
-
-features = [calc_features(row) for row in data]
-print(hac(features))
+def distance_calc2(dataset): #distance matrix
+    distances = np.zeros((len(dataset),len(dataset)))
+    for i in range(len(dataset)):
+        for j in range(len(dataset)):
+                dist = np.linalg.norm(dataset[i] - dataset[j])
+                distances[i][j] = dist
+    return distances
 
 
+def fig_hac(Z, names):
+    fig = plt.figure(figsize=(10, 6))
+    
+    # Use dendrogram to visualize hierarchical clustering
+    dn = hierarchy.dendrogram(Z, labels=names, leaf_rotation=90)
 
+    # Adjust layout to prevent x labels from being cut off
+    plt.tight_layout()
+
+    # Show the plot
+    #plt.show()
+    return fig
+
+def normalize_features(features):
+    # Convert the list of feature vectors to a NumPy array
+    features_array = np.array(features)
+
+    # Calculate mean and standard deviation for each column
+    column_means = np.mean(features_array, axis=0)
+    column_stddevs = np.std(features_array, axis=0)
+
+    # Normalize each column in the feature vectors
+    normalized_features = (features_array - column_means) / column_stddevs
+
+    # Convert the result back to a list of NumPy arrays
+    normalized_features_list = [np.array(row) for row in normalized_features]
+
+    return normalized_features_list
+
+
+# data = load_data("countries.csv")
+# country_names = [row["Country"] for row in data]
+# features = [calc_features(row) for row in data]
+# features_normalized = normalize_features(features)
+# n = 51
+# Z_raw = hac(features[:n])
+# Z_normalized = hac(features_normalized[:n])
+# print(Z_normalized)
+# fig = fig_hac(Z_raw, country_names[:n])
+# plt.show()
