@@ -121,13 +121,13 @@ def normalize_features(features):
     return normalized_features_list
 
 
-# data = load_data("countries.csv")
-# country_names = [row["Country"] for row in data]
-# features = [calc_features(row) for row in data]
-# features_normalized = normalize_features(features)
-# n = 51
-# Z_raw = hac(features[:n])
-# Z_normalized = hac(features_normalized[:n])
-# print(Z_normalized)
-# fig = fig_hac(Z_raw, country_names[:n])
-# plt.show()
+data = load_data("countries.csv")
+country_names = [row["Country"] for row in data]
+features = [calc_features(row) for row in data]
+features_normalized = normalize_features(features)
+n = 51
+Z_raw = hac(features[:n])
+Z_normalized = hac(features_normalized[:n])
+print(Z_normalized)
+fig = fig_hac(Z_raw, country_names[:n])
+plt.show()
